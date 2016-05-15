@@ -1,0 +1,12 @@
+{
+  "name": "mpu-9250-example",
+  "version": "1.0.0",
+  "bin": "./source",
+  "private": true,
+  "description": "InvenSense MPU-9250 9-Axis Sensor Example for mbed OS",
+  "author": "Daisuke Baba",
+  "license": "MIT",
+  "dependencies": {
+    "mbed-drivers": "^1.5.0"
+  }
+}
