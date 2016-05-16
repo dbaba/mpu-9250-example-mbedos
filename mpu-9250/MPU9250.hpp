@@ -207,9 +207,9 @@ class MPU9250 {
     // Set the expected magnetic fields depending on your location
     // http://www.ngdc.noaa.gov/geomag-web/#igrfwmm (in nT, mG = nT / 100)
     float _magBias[3] = {
-        299.809, // +North(-South) (mG)
-        -387.89, // +East(-West) (mG)
-        353.871  // +Down(-Up) (mG)
+        0, // +North(-South) (mG)
+        0, // +East(-West) (mG)
+        0  // +Down(-Up) (mG)
     };
 
     float _magScale[3] = {0, 0, 0};
@@ -261,6 +261,18 @@ public:
 
     uint8_t getBusId(void) {
         return _busId;
+    }
+
+    /*
+     * Set magnetometer bias values prior to initAll() call
+     * biasX ... +North(-South) (mG)
+     * biasY ... +East(-West) (mG)
+     * biasZ ... +Down(-Up) (mG)
+     */
+    void setMagBias(float biasX, float biasY, float biasZ) {
+        _magBias[0] = biasX;
+        _magBias[1] = biasY;
+        _magBias[2] = biasZ;
     }
 
     //===================================================================================================================

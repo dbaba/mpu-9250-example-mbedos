@@ -17,6 +17,11 @@ static void mpu9250_init(MPU9250* sensor) {
         return;
     }
 
+    sensor->setMagBias(
+        299.809, // +North(-South) (mG)
+        -387.89, // +East(-West) (mG)
+        353.871  // +Down(-Up) (mG)
+    );
     sensor->initAll();
 }
 
