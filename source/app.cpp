@@ -1,6 +1,6 @@
 #include "mbed-drivers/mbed.h"
 
-#define ASYNC 0
+#define ASYNC 1
 
 #if ASYNC
     #include "mpu-9250/motion_async.hpp"
