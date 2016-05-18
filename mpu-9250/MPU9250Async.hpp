@@ -106,7 +106,7 @@ public:
         I2CNextTaskFunctionPointer i2c_fp(this, &I2CAsyncOperation::minar_callback);
         mbed::util::FunctionPointerBind<void> next_task(i2c_fp.bind(status, rx_size, rx_values));
         if (_delay_ms > 0) {
-            minar::Scheduler::postCallback(next_task).period(minar::milliseconds(_delay_ms));
+            minar::Scheduler::postCallback(next_task).delay(minar::milliseconds(_delay_ms));
         } else {
             minar::Scheduler::postCallback(next_task);
         }
