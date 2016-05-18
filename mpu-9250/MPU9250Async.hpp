@@ -61,7 +61,7 @@ public:
     }
 
     static void async_read(mbed::drivers::v2::I2C* i2c, uint8_t address, uint8_t read_len, I2CCallback callback, uint16_t delay_ms=0) {
-        I2CAsyncOperation* read = new I2CAsyncOperation(callback, delay_ms, true, true);
+        I2CAsyncOperation* read = new I2CAsyncOperation(callback, delay_ms, true, false);
         I2CCallbackFunctionPointer i2c_read_fp(read, &I2CAsyncOperation::i2c_callback);
         i2c->transfer_to(address)
             .rx(read_len)
