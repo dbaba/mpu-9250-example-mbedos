@@ -16,7 +16,6 @@ static void blinky(void) {
 void app_start(int, char**) {
 #if ASYNC
     mpu9250_async_task_init();
-    minar::Scheduler::postCallback(mpu9250_async_task);
 #else
     mpu9250_sync_task_init();
     minar::Scheduler::postCallback(mpu9250_sync_task).period(minar::milliseconds(200));

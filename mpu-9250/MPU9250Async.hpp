@@ -21,6 +21,8 @@ using I2CWriteByteCallback = std::function<void(mpu9250::StatusCode)>;
 using I2CReadByteCallback = std::function<void(mpu9250::StatusCode, uint8_t)>;
 using I2CReadBytesCallback = I2CCallback;
 
+using MPU9250SimpleCallback = std::function<void(mpu9250::StatusCode)>;
+
 class I2CAsyncOperation {
     I2CCallback _callback;
     uint16_t _delay_ms;
@@ -176,11 +178,19 @@ public:
       return _i2c;
     }
 
-    void initAll(void) {
+    void initAllAsync(MPU9250SimpleCallback callback) {
         if (_initialized) {
+            callback(mpu9250::OK);
             return;
         }
-    //     resetMPU9250();
+        resetMPU9250Async([callback](mpu9250::StatusCode status) {
+            if (status == mpu9250::OK) {
+                // TODO accelgyrocalMPU9250()
+                callback(status);
+            } else {
+                callback(status);
+            }
+        });
     //     accelgyrocalMPU9250();
     //     initMPU9250();
     //     initAK8963();
@@ -368,13 +378,12 @@ public:
     //     readBytes(MPU9250_ADDRESS, TEMP_OUT_H, 2, &rawData[0]);    // Read the two raw data registers sequentially into data array
     //     return (int16_t)(((int16_t)rawData[0]) << 8 | rawData[1]) ;    // Turn the MSB and LSB into a 16-bit value
     // }
-    //
-    // void resetMPU9250() {
-    //     // reset device
-    //     writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x80); // Write a one to bit 7 reset bit; toggle reset device
-    //     wait(0.1);
-    // }
-    //
+
+    void resetMPU9250Async(I2CWriteByteCallback callback) {
+        // reset device
+        writeByteAsync(MPU9250_ADDRESS, PWR_MGMT_1, 0x80, callback, 100); // Write a one to bit 7 reset bit; toggle reset device
+    }
+
     // void initAK8963(void) {
     //     float * destination = _magCalibration;
     //     // First extract the factory calibration for each magnetometer axis

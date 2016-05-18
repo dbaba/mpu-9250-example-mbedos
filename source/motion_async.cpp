@@ -20,4 +20,11 @@ void mpu9250_async_task(void) {
 void mpu9250_async_task_init(void) {
     i2cAsyncBus.frequency(400000);
     motion_sensor = new MPU9250Async(&i2cAsyncBus, 1);
+    motion_sensor->initAllAsync([](mpu9250::StatusCode status) {
+        if (status == mpu9250::OK) {
+            minar::Scheduler::postCallback(mpu9250_async_task);
+        } else {
+            printf("%s\r\n", "Error. Something wrong");
+        }
+    });
 }
