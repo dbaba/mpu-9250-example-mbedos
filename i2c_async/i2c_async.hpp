@@ -139,7 +139,7 @@ public:
             status = i2c_async::ERROR;
         }
 
-        if (_readable) {
+        if ((status == i2c_async::OK) && _readable) {
             t->reset_current();
             if (_write_before_read) {
                 buf = t
