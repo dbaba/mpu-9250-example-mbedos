@@ -92,9 +92,10 @@ public:
     static void async_read_multiple_registers(mbed::drivers::v2::I2C* i2c, uint8_t address, uint8_t register_address, uint8_t read_len, I2CReadBytesCallback callback, uint16_t delay_ms=0) {
         I2CAsyncOperation* read = new I2CAsyncOperation(callback, delay_ms, true, true);
         I2CCallbackFunctionPointer i2c_read_fp(read, &I2CAsyncOperation::i2c_callback);
-        i2c->transfer_to(address)
-            .tx_ephemeral(&register_address, 1)
-            .rx(read_len)
+        mbed::drivers::v2::I2C::TransferAdder t = i2c->transfer_to(address);
+        t.tx_ephemeral(&register_address, 1);
+        uint8_t* buf = new uint8_t[read_len]; // must be `delete[]`d within a callback
+        t.rx(buf, read_len)
             .on(I2C_EVENT_ALL, i2c_read_fp)
             .apply();
     }
@@ -102,6 +103,7 @@ public:
     static void async_read_single_register(mbed::drivers::v2::I2C* i2c, uint8_t address, uint8_t register_address, I2CReadByteCallback callback, uint16_t delay_ms=0) {
         i2c_async::I2CCallback wrapper = [callback](i2c_async::StatusCode status, std::size_t, uint8_t* data) {
             callback(status, *data);
+            delete[] data; // always delete[] as the underlying buffer is NOT emphemeral
         };
         async_read_multiple_registers(i2c, address, register_address, 1, wrapper, delay_ms);
     }
@@ -109,8 +111,9 @@ public:
     static void async_bulk_read(mbed::drivers::v2::I2C* i2c, uint8_t address, uint8_t read_len, I2CCallback callback, uint16_t delay_ms=0) {
         I2CAsyncOperation* read = new I2CAsyncOperation(callback, delay_ms, true, false);
         I2CCallbackFunctionPointer i2c_read_fp(read, &I2CAsyncOperation::i2c_callback);
-        i2c->transfer_to(address)
-            .rx(read_len)
+        mbed::drivers::v2::I2C::TransferAdder t = i2c->transfer_to(address);
+        uint8_t* buf = new uint8_t[read_len]; // must be `delete[]`d within a callback
+        t.rx(buf, read_len)
             .on(I2C_EVENT_ALL, i2c_read_fp)
             .apply();
     }
