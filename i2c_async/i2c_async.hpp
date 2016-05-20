@@ -11,12 +11,12 @@ typedef enum {
     NO_SLAVE = 2
 } StatusCode;
 
-using I2CCallback = std::function<void(i2c_async::StatusCode, std::size_t, uint8_t*)>;
+using I2CCallback = std::function<void(i2c_async::StatusCode, std::size_t, uint8_t*)>; // uint8_t* must be `delete[]`d within a callback unless it's a nullptr
 using I2CCallbackFunctionPointer = mbed::util::FunctionPointer2<void, mbed::drivers::v2::I2CTransaction*, uint32_t>;
 using I2CNextTaskFunctionPointer = mbed::util::FunctionPointer3<void, i2c_async::StatusCode, std::size_t, uint8_t*>;
 using I2CWriteByteCallback = std::function<void(i2c_async::StatusCode)>;
 using I2CReadByteCallback = std::function<void(i2c_async::StatusCode, uint8_t)>;
-using I2CReadBytesCallback = I2CCallback;
+using I2CReadBytesCallback = I2CCallback; // uint8_t* must be `delete[]`d within a callback unless it's a nullptr
 
 template<std::size_t SIZE>
 struct State {
