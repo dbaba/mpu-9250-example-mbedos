@@ -7,8 +7,8 @@ static mbed::drivers::v2::I2C i2cAsyncBus(PB_9, PB_8);
 static MPU9250Async* motion_sensor;
 
 void mpu9250_async_task(void) {
-    motion_sensor->whoAmI1([](mpu9250::StatusCode status, uint8_t data) {
-        if (status == mpu9250::OK && data == 0x71) {
+    motion_sensor->whoAmI1([](i2c_async::StatusCode status, uint8_t data) {
+        if (status == i2c_async::OK && data == 0x71) {
             printf("%s\r\n", "MPU-9250 WHO_AM_I is SUCCESS!!!");
         } else {
             printf("%s status:%d\r\n", "MPU-9250 WHO_AM_I is FAAAAAAAAAIL....", status);
@@ -20,8 +20,8 @@ void mpu9250_async_task(void) {
 void mpu9250_async_task_init(void) {
     i2cAsyncBus.frequency(400000);
     motion_sensor = new MPU9250Async(&i2cAsyncBus, 1);
-    motion_sensor->initAllAsync([](mpu9250::StatusCode status) {
-        if (status == mpu9250::OK) {
+    motion_sensor->initAllAsync([](i2c_async::StatusCode status) {
+        if (status == i2c_async::OK) {
             minar::Scheduler::postCallback(mpu9250_async_task);
         } else {
             printf("%s\r\n", "Error. Something wrong");
