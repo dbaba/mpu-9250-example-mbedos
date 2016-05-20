@@ -502,9 +502,9 @@ public:
         dest2[1] = (float)accel_bias[1]/(float)accelsensitivity;
         dest2[2] = (float)accel_bias[2]/(float)accelsensitivity;
 
-        printf("AccelBias X: %f\r\n", dest1[0]);
-        printf("AccelBias Y: %f\r\n", dest1[1]);
-        printf("AccelBias Z: %f\r\n", dest1[2]);
+        printf("AccelBias X: %f\r\n", dest2[0]);
+        printf("AccelBias Y: %f\r\n", dest2[1]);
+        printf("AccelBias Z: %f\r\n", dest2[2]);
     }
 
 
