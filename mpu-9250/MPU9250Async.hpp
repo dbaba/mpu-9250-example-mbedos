@@ -74,10 +74,18 @@ public:
             return;
         }
 
-        i2c_async::I2CWriteByteCallback accelgyrocalMPU9250AsyncCallback = [this, finalCallback](i2c_async::StatusCode status) {
+        i2c_async::I2CWriteByteCallback initMPU9250Callback = [this, finalCallback](i2c_async::StatusCode status) {
             if (status == i2c_async::OK) {
-                // TODO initMPU9250()
+                // TODO initAK8963()
                 finalCallback(status);
+            } else {
+                finalCallback(status);
+            }
+        };
+
+        i2c_async::I2CWriteByteCallback accelgyrocalMPU9250AsyncCallback = [this, finalCallback, initMPU9250Callback](i2c_async::StatusCode status) {
+            if (status == i2c_async::OK) {
+                initMPU9250Async(initMPU9250Callback);
             } else {
                 finalCallback(status);
             }
@@ -92,8 +100,6 @@ public:
         };
         resetMPU9250Async(resetMPU9250AsyncCallback);
 
-    //     accelgyrocalMPU9250();
-    //     initMPU9250();
     //     initAK8963();
     //     magcalMPU9250();
     //     setInitialized();
@@ -305,57 +311,110 @@ public:
     //     writeByte(AK8963_ADDRESS, AK8963_CNTL, _Mscale << 4 | _Mmode); // Set magnetometer data resolution and sample ODR
     //     wait(0.01);
     // }
-    //
-    // void initMPU9250() {
-    //     // Initialize MPU9250 device
-    //     // wake up device
-    //     writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00); // Clear sleep mode bit (6), enable all sensors
-    //     wait(0.1); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt
-    //
-    //     // get stable time source
-    //     writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01);    // Set clock source to be PLL with x-axis gyroscope reference, bits 2:0 = 001
-    //
-    //     // Configure Gyro and Accelerometer
-    //     // Disable FSYNC and set accelerometer and gyro bandwidth to 44 and 42 Hz, respectively;
-    //     // DLPF_CFG = bits 2:0 = 010; this sets the sample rate at 1 kHz for both
-    //     // Maximum delay is 4.9 ms which is just over a 200 Hz maximum rate
-    //     writeByte(MPU9250_ADDRESS, CONFIG, 0x03);
-    //
-    //     // Set sample rate = gyroscope output rate/(1 + SMPLRT_DIV)
-    //     writeByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x04);    // Use a 200 Hz rate; the same rate set in CONFIG above
-    //
-    //     // Set gyroscope full scale range
-    //     // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
-    //     uint8_t c = readByte(MPU9250_ADDRESS, GYRO_CONFIG);
-    //     writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c & ~0xE0); // Clear self-test bits [7:5]
-    //     writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c & ~0x18); // Clear AFS bits [4:3]
-    //     writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c | _Mscale << 3); // Set full scale range for the gyro
-    //
-    //     // Set accelerometer configuration
-    //     c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG);
-    //     writeByte(MPU9250_ADDRESS, ACCEL_CONFIG, c & ~0xE0); // Clear self-test bits [7:5]
-    //     writeByte(MPU9250_ADDRESS, ACCEL_CONFIG, c & ~0x18); // Clear AFS bits [4:3]
-    //     writeByte(MPU9250_ADDRESS, ACCEL_CONFIG, c | _Ascale << 3); // Set full scale range for the accelerometer
-    //
-    //     // Set accelerometer sample rate configuration
-    //     // It is possible to get a 4 kHz sample rate from the accelerometer by choosing 1 for
-    //     // accel_fchoice_b bit [3]; in this case the bandwidth is 1.13 kHz
-    //     c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG2);
-    //     writeByte(MPU9250_ADDRESS, ACCEL_CONFIG2, c & ~0x0F); // Clear accel_fchoice_b (bit 3) and A_DLPFG (bits [2:0])
-    //     writeByte(MPU9250_ADDRESS, ACCEL_CONFIG2, c | 0x03); // Set accelerometer rate to 1 kHz and bandwidth to 41 Hz
-    //
-    //     // The accelerometer, gyro, and thermometer are set to 1 kHz sample rates,
-    //     // but all these rates are further reduced by a factor of 5 to 200 Hz because of the SMPLRT_DIV setting
-    //
-    //     // Configure Interrupts and Bypass Enable
-    //     // Set interrupt pin active high, push-pull, and clear on read of INT_STATUS, enable I2C_BYPASS_EN so additional chips
-    //     // can join the I2C bus and all can be controlled by the Arduino as master
-    //     writeByte(MPU9250_ADDRESS, INT_PIN_CFG, 0x22);
-    //     writeByte(MPU9250_ADDRESS, INT_ENABLE, 0x01);    // Enable data ready (bit 0) interrupt
-    //     wait(0.1); // wait for pass-through mode enabled
-    // }
 
 private:
+    void gyroConfig(MPU9250SimpleCallback callback) {
+        // Set gyroscope full scale range
+        // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
+        readByteAsync(MPU9250_ADDRESS, GYRO_CONFIG, [this, callback](i2c_async::StatusCode status, uint8_t c) {
+            if (status != i2c_async::OK) {
+                callback(status);
+                return;
+            }
+            const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 3> config = {
+                std::make_tuple(GYRO_CONFIG, c & ~0xE0, 0),         // Clear self-test bits [7:5]
+                std::make_tuple(GYRO_CONFIG, c & ~0x18, 0),         // Clear AFS bits [4:3]
+                std::make_tuple(GYRO_CONFIG, c | _Mscale << 3, 0)   // Set full scale range for the gyro
+            };
+            writeBytesAsync(MPU9250_ADDRESS, config, [this, callback](i2c_async::StatusCode status) {
+                if (status != i2c_async::OK) {
+                    callback(status);
+                } else {
+                    accelConfig(callback);
+                }
+            });
+        });
+    }
+
+    void accelConfig(MPU9250SimpleCallback callback) {
+        // Set accelerometer configuration
+        // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
+        readByteAsync(MPU9250_ADDRESS, ACCEL_CONFIG, [this, callback](i2c_async::StatusCode status, uint8_t c) {
+            if (status != i2c_async::OK) {
+                callback(status);
+                return;
+            }
+            const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 3> config = {
+                std::make_tuple(ACCEL_CONFIG, c & ~0xE0, 0),         // Clear self-test bits [7:5]
+                std::make_tuple(ACCEL_CONFIG, c & ~0x18, 0),         // Clear AFS bits [4:3]
+                std::make_tuple(ACCEL_CONFIG, c | _Ascale << 3, 0)   // Set full scale range for the gyro
+            };
+            writeBytesAsync(MPU9250_ADDRESS, config, [this, callback](i2c_async::StatusCode status) {
+                if (status != i2c_async::OK) {
+                    callback(status);
+                } else {
+                    accelSampleConfig(callback);
+                }
+            });
+        });
+    }
+
+    void accelSampleConfig(MPU9250SimpleCallback callback) {
+        // Set accelerometer configuration
+        // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
+        readByteAsync(MPU9250_ADDRESS, ACCEL_CONFIG2, [this, callback](i2c_async::StatusCode status, uint8_t c) {
+            if (status != i2c_async::OK) {
+                callback(status);
+                return;
+            }
+            // Set accelerometer sample rate configuration
+            // It is possible to get a 4 kHz sample rate from the accelerometer by choosing 1 for
+            // accel_fchoice_b bit [3]; in this case the bandwidth is 1.13 kHz
+            const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 4> config = {
+                std::make_tuple(ACCEL_CONFIG2, c & ~0x0F, 0),   // Clear accel_fchoice_b (bit 3) and A_DLPFG (bits [2:0])
+                std::make_tuple(ACCEL_CONFIG2, c | 0x03, 0),    // Set accelerometer rate to 1 kHz and bandwidth to 41 Hz
+                // The accelerometer, gyro, and thermometer are set to 1 kHz sample rates,
+                // but all these rates are further reduced by a factor of 5 to 200 Hz because of the SMPLRT_DIV setting
+
+                // Configure Interrupts and Bypass Enable
+                // Set interrupt pin active high, push-pull, and clear on read of INT_STATUS, enable I2C_BYPASS_EN so additional chips
+                // can join the I2C bus and all can be controlled by the Arduino as master
+                std::make_tuple(INT_PIN_CFG, 0x22, 0),
+                std::make_tuple(INT_ENABLE, 0x01, 100) // Enable data ready (bit 0) interrupt
+                                                        // wait for pass-through mode enabled
+            };
+            writeBytesAsync(MPU9250_ADDRESS, config, [this, callback](i2c_async::StatusCode status) {
+                callback(status);
+            });
+        });
+    }
+
+    void initMPU9250Async(MPU9250SimpleCallback callback) {
+        // Initialize MPU9250 device
+        //                                 register, data, delay in ms
+        static const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 4> INIT_MPU9250 = {
+            // wake up device
+            std::make_tuple(PWR_MGMT_1, 0x00, 100), // Clear sleep mode bit (6), enable all sensors
+                                                    // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt
+                                                    // get stable time source
+            std::make_tuple(PWR_MGMT_1, 0x01, 100), // Set clock source to be PLL with x-axis gyroscope reference, bits 2:0 = 001
+            // Configure Gyro and Accelerometer
+            // Disable FSYNC and set accelerometer and gyro bandwidth to 44 and 42 Hz, respectively;
+            // DLPF_CFG = bits 2:0 = 010; this sets the sample rate at 1 kHz for both
+            // Maximum delay is 4.9 ms which is just over a 200 Hz maximum rate
+            std::make_tuple(CONFIG, 0x03, 100),
+            // Set sample rate = gyroscope output rate/(1 + SMPLRT_DIV)
+            std::make_tuple(SMPLRT_DIV, 0x04, 100)  // Use a 200 Hz rate; the same rate set in CONFIG above
+        };
+        writeBytesAsync(MPU9250_ADDRESS, INIT_MPU9250, [this, callback](i2c_async::StatusCode status) {
+            if (status != i2c_async::OK) {
+                callback(status);
+            } else {
+                gyroConfig(callback);
+            }
+        });
+    }
+
     struct Calibratioin {
         uint8_t data[12]; // data array to hold accelerometer and gyro x, y, z, data
         uint16_t ii = 0;
@@ -579,7 +638,7 @@ public:
             };
 
             // At end of sample accumulation, turn off FIFO sensor read
-            readBytesAsync(MPU9250_ADDRESS, FIFO_COUNTH, 2, [this, wrapper, context](i2c_async::StatusCode status, std::size_t len, uint8_t* values) {
+            readBytesAsync(MPU9250_ADDRESS, FIFO_COUNTH, 2, [this, wrapper, context](i2c_async::StatusCode status, std::size_t, uint8_t* values) {
                 if (status != i2c_async::OK) {
                     wrapper(status);
                     return;
