@@ -5,6 +5,7 @@
 #include "i2c_async/i2c_async.hpp"
 
 using MPU9250SimpleCallback = i2c_async::I2CWriteByteCallback;
+using MPU9250DataCallback = std::function<void(i2c_async::StatusCode, std::size_t, uint16_t*)>; // uint16_t* is deleted automatically after callback is done
 
 class MPU9250Async {
     mbed::drivers::v2::I2C* _i2c;
@@ -272,20 +273,44 @@ public:
     //     destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
     //     destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
     // }
-    //
-    // void readMagData(int16_t * destination) {
-    //     uint8_t rawData[7];    // x/y/z gyro register data, ST2 register stored here, must read ST2 at end of data acquisition
-    //     if(((_Mmode & 0x01) == 0) || (readByte(AK8963_ADDRESS, AK8963_ST1) & 0x01)) { // wait for magnetometer data ready bit to be set
-    //         readBytes(AK8963_ADDRESS, AK8963_XOUT_L, 7, &rawData[0]);    // Read the six raw data and ST2 registers sequentially into data array
-    //         uint8_t c = rawData[6]; // End data read by reading ST2 register
-    //         if(!(c & 0x08)) { // Check if magnetic sensor overflow set, if not then report data
-    //             destination[0] = (int16_t)(((int16_t)rawData[1] << 8) | rawData[0]);    // Turn the MSB and LSB into a signed 16-bit value
-    //             destination[1] = (int16_t)(((int16_t)rawData[3] << 8) | rawData[2]) ;    // Data stored as little Endian
-    //             destination[2] = (int16_t)(((int16_t)rawData[5] << 8) | rawData[4]) ;
-    //         }
-    //     }
-    // }
-    //
+
+    void _readMagDataAsync(MPU9250DataCallback callback) {
+        // x/y/z gyro register data, ST2 register stored here, must read ST2 at end of data acquisition        readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
+        readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
+            [callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
+                if (status != i2c_async::OK) {
+                    callback(status, 0, nullptr);
+                    return;
+                }
+                uint16_t destination[3] = {0, 0, 0};
+                uint8_t c = rawData[6]; // End data read by reading ST2 register
+                if(!(c & 0x08)) { // Check if magnetic sensor overflow set, if not then report data
+                    destination[0] = (int16_t)(((int16_t)rawData[1] << 8) | rawData[0]);    // Turn the MSB and LSB into a signed 16-bit value
+                    destination[1] = (int16_t)(((int16_t)rawData[3] << 8) | rawData[2]) ;    // Data stored as little Endian
+                    destination[2] = (int16_t)(((int16_t)rawData[5] << 8) | rawData[4]) ;
+                }
+                callback(status, 3, destination); // destination will be discarded
+            }
+        );
+    }
+
+    void readMagDataAsync(MPU9250DataCallback callback) {
+        if ((_Mmode & 0x01) == 0) {
+            _readMagDataAsync(callback);
+            return;
+        }
+        readByteAsync(AK8963_ADDRESS, AK8963_ST1, [this, callback](i2c_async::StatusCode status, uint8_t flag) {
+            if (i2c_async::OK == status) {
+                // skip until magnetometer data ready bit is set
+                if (flag & 0x01) {
+                    _readMagDataAsync(callback);
+                    return;
+                }
+            }
+            callback(i2c_async::ERROR, 0, nullptr);
+        });
+    }
+
     // int16_t readTempData() {
     //     uint8_t rawData[2];    // x/y/z gyro register data stored here
     //     readBytes(MPU9250_ADDRESS, TEMP_OUT_H, 2, &rawData[0]);    // Read the two raw data registers sequentially into data array
