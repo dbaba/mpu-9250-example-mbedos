@@ -263,6 +263,7 @@ private:
                 destination[3] = (int16_t)(((int16_t)rawData[8] << 8) | rawData[9]) ;    // Turn the MSB and LSB into a signed 16-bit value
                 destination[4] = (int16_t)(((int16_t)rawData[10] << 8) | rawData[11]) ;
                 destination[5] = (int16_t)(((int16_t)rawData[12] << 8) | rawData[13]) ;
+                delete[] rawData;
                 callback(status, 6, destination);
             }
         );
@@ -280,6 +281,7 @@ private:
                 destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
                 destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
                 destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
+                delete[] rawData;
                 callback(status, 6, destination);
             }
         );
@@ -297,6 +299,7 @@ private:
                 destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
                 destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
                 destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
+                delete[] rawData;
                 callback(status, 6, destination);
             }
         );
@@ -317,6 +320,7 @@ private:
                     destination[1] = (int16_t)(((int16_t)rawData[3] << 8) | rawData[2]) ;    // Data stored as little Endian
                     destination[2] = (int16_t)(((int16_t)rawData[5] << 8) | rawData[4]) ;
                 }
+                delete[] rawData;
                 callback(status, 3, destination); // destination will be discarded
             }
         );
