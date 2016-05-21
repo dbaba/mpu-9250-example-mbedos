@@ -246,35 +246,62 @@ public:
     //         out_data[i] = f;
     //     }
     // }
-    //
-    // void readAccelGyroData(int16_t * destination) {
-    //     uint8_t rawData[14];    // x/y/z accel register data stored here
-    //     readBytes(MPU9250_ADDRESS, ACCEL_XOUT_H, 14, &rawData[0]);    // Read the six raw data registers into data array
-    //     destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
-    //     destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
-    //     destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
-    //     destination[3] = (int16_t)(((int16_t)rawData[8] << 8) | rawData[9]) ;    // Turn the MSB and LSB into a signed 16-bit value
-    //     destination[4] = (int16_t)(((int16_t)rawData[10] << 8) | rawData[11]) ;
-    //     destination[5] = (int16_t)(((int16_t)rawData[12] << 8) | rawData[13]) ;
-    // }
-    //
-    // void readAccelData(int16_t * destination) {
-    //     uint8_t rawData[6];    // x/y/z accel register data stored here
-    //     readBytes(MPU9250_ADDRESS, ACCEL_XOUT_H, 6, &rawData[0]);    // Read the six raw data registers into data array
-    //     destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
-    //     destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
-    //     destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
-    // }
-    //
-    // void readGyroData(int16_t * destination) {
-    //     uint8_t rawData[6];    // x/y/z gyro register data stored here
-    //     readBytes(MPU9250_ADDRESS, GYRO_XOUT_H, 6, &rawData[0]);    // Read the six raw data registers sequentially into data array
-    //     destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
-    //     destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
-    //     destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
-    // }
 
 private:
+    void readAccelGyroData(MPU9250DataCallback callback) {
+        // x/y/z accel register data stored here
+        readBytesAsync(MPU9250_ADDRESS, ACCEL_XOUT_H, 14, // Read the 14 raw data registers into data array
+            [callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
+                if (status != i2c_async::OK) {
+                    callback(status, 0, nullptr);
+                    return;
+                }
+                uint16_t destination[6] = {0, 0, 0, 0, 0, 0};
+                destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
+                destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
+                destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
+                destination[3] = (int16_t)(((int16_t)rawData[8] << 8) | rawData[9]) ;    // Turn the MSB and LSB into a signed 16-bit value
+                destination[4] = (int16_t)(((int16_t)rawData[10] << 8) | rawData[11]) ;
+                destination[5] = (int16_t)(((int16_t)rawData[12] << 8) | rawData[13]) ;
+                callback(status, 6, destination);
+            }
+        );
+    }
+
+    void readAccelDataAsync(MPU9250DataCallback callback) {
+        // x/y/z accel register data stored here
+        readBytesAsync(MPU9250_ADDRESS, ACCEL_XOUT_H, 6, // Read the six raw data registers into data array
+            [callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
+                if (status != i2c_async::OK) {
+                    callback(status, 0, nullptr);
+                    return;
+                }
+                uint16_t destination[3] = {0, 0, 0};
+                destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
+                destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
+                destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
+                callback(status, 6, destination);
+            }
+        );
+    }
+
+    void readGyroDataAsync(MPU9250DataCallback callback) {
+        // x/y/z gyro register data stored here
+        readBytesAsync(MPU9250_ADDRESS, GYRO_XOUT_H, 6, // Read the six raw data registers into data array
+            [callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
+                if (status != i2c_async::OK) {
+                    callback(status, 0, nullptr);
+                    return;
+                }
+                uint16_t destination[3] = {0, 0, 0};
+                destination[0] = (int16_t)(((int16_t)rawData[0] << 8) | rawData[1]) ;    // Turn the MSB and LSB into a signed 16-bit value
+                destination[1] = (int16_t)(((int16_t)rawData[2] << 8) | rawData[3]) ;
+                destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
+                callback(status, 6, destination);
+            }
+        );
+    }
+
     void doReadMagDataAsync(MPU9250DataCallback callback) {
         // x/y/z gyro register data, ST2 register stored here, must read ST2 at end of data acquisition        readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
         readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
