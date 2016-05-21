@@ -14,6 +14,11 @@ static void mpu9250_async_task_who_am_i(void) {
     motion_sensor->whoAmI1([](i2c_async::StatusCode status, uint8_t data) {
         if (status == i2c_async::OK && data == 0x71) {
             printf("%s\r\n", "MPU-9250 WHO_AM_I is SUCCESS!!!");
+            motion_sensor->setMagBias(
+                299.809, // +North(-South) (mG)
+                -387.89, // +East(-West) (mG)
+                353.871  // +Down(-Up) (mG)
+            );
             motion_sensor->initAllAsync([](i2c_async::StatusCode status) {
                 if (status == i2c_async::OK) {
                     minar::Scheduler::postCallback(mpu9250_async_task);
