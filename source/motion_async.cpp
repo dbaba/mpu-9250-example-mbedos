@@ -7,7 +7,34 @@ static mbed::drivers::v2::I2C i2cAsyncBus(PB_9, PB_8);
 static MPU9250Async* motion_sensor;
 
 void mpu9250_async_task(void) {
-    printf("%s\r\n", "OK. mpu9250_async_task() started!");
+    motion_sensor->getAccelGyroAsync([](i2c_async::StatusCode status, std::size_t, uint8_t* byte_vals) {
+        if (status != i2c_async::OK) {
+            printf("[ERROR] <ACCEL/GYRO> Status=%d\r\n", status);
+            return;
+        }
+        float* vals = (float*) byte_vals;
+        printf("%s\r\n", "========================================================");
+        printf("[ACCEL (m/s2)] x:%11.6f y:%11.6f z:%11.6f\r\n", vals[0], vals[1], vals[2]);
+        printf("[GYRO (rad/s)] x:%11.6f y:%11.6f z:%11.6f\r\n", vals[3], vals[4], vals[5]);
+        delete[] byte_vals;
+
+        motion_sensor->getMagAsync([](i2c_async::StatusCode status, std::size_t, uint8_t* byte_vals) {
+            if (status != i2c_async::OK) {
+                printf("[ERROR] <MAG> Status=%d\r\n", status);
+                return;
+            }
+            float* vals = (float*) byte_vals;
+            printf("[MAG (mG)    ] x:%11.6f y:%11.6f z:%11.6f\r\n", vals[0], vals[1], vals[2]);
+            delete[] byte_vals;
+
+            uint8_t q[4 * 4]; // float = 4 bytes
+            motion_sensor->performMadgwickQuaternionUpdate(q);
+            vals = (float*) q;
+            printf("[QUARTERNION ] w:%11.6f x:%11.6f y:%11.6f z:%f\r\n", vals[0], vals[1], vals[2], vals[3]);
+
+            minar::Scheduler::postCallback(mpu9250_async_task).delay(minar::milliseconds(200));
+        });
+    });
 }
 
 static void mpu9250_async_task_who_am_i(void) {
