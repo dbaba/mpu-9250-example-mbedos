@@ -274,7 +274,8 @@ public:
     //     destination[2] = (int16_t)(((int16_t)rawData[4] << 8) | rawData[5]) ;
     // }
 
-    void _readMagDataAsync(MPU9250DataCallback callback) {
+private:
+    void doReadMagDataAsync(MPU9250DataCallback callback) {
         // x/y/z gyro register data, ST2 register stored here, must read ST2 at end of data acquisition        readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
         readBytesAsync(AK8963_ADDRESS, AK8963_XOUT_L, 7, // Read the six raw data and ST2 registers sequentially into data array
             [callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
@@ -294,16 +295,17 @@ public:
         );
     }
 
+public:
     void readMagDataAsync(MPU9250DataCallback callback) {
         if ((_Mmode & 0x01) == 0) {
-            _readMagDataAsync(callback);
+            doReadMagDataAsync(callback);
             return;
         }
         readByteAsync(AK8963_ADDRESS, AK8963_ST1, [this, callback](i2c_async::StatusCode status, uint8_t flag) {
             if (i2c_async::OK == status) {
                 // skip until magnetometer data ready bit is set
                 if (flag & 0x01) {
-                    _readMagDataAsync(callback);
+                    doReadMagDataAsync(callback);
                     return;
                 }
             }
@@ -696,7 +698,6 @@ public:
         });
     }
 
-
     // // Accelerometer and gyroscope self test; check calibration wrt factory settings
     // void MPU9250SelfTest(float * destination) // Should return percent deviation from factory trim values, +/- 14 or less deviation is a pass
     // {
@@ -782,7 +783,6 @@ public:
     //     }
     //
     // }
-
 
     /* uint8_t out[4 * 4], Quaternion in NED(w,x,y,z) */
     void performMadgwickQuaternionUpdate(uint8_t *out) {
@@ -1002,66 +1002,82 @@ public:
 
     }
 
-    void magcalMPU9250Async(MPU9250SimpleCallback callback) {
-        callback(i2c_async::OK); // TODO
+private:
+    void doMagcalMPU9250Async(uint16_t ii, uint16_t sample_count, uint8_t wait_millis,
+            int16_t* mag_max, int16_t* mag_min, MPU9250SimpleCallback callback) {
+
+        if (ii < sample_count) {
+            readMagDataAsync([this, ii, sample_count, wait_millis, mag_max, mag_min, callback]
+                    (i2c_async::StatusCode status, std::size_t, uint16_t* mag_temp) {
+                if (status != i2c_async::OK) {
+                    callback(status);
+                    return;
+                }
+                for (uint8_t jj = 0; jj < 3; jj++) {
+                    if(mag_temp[jj] > mag_max[jj]) mag_max[jj] = mag_temp[jj];
+                    if(mag_temp[jj] < mag_min[jj]) mag_min[jj] = mag_temp[jj];
+                }
+                wait_ms(wait_millis);
+                doMagcalMPU9250Async(ii + 1, sample_count, wait_millis, mag_max, mag_min, callback);
+            });
+            return;
+        }
+
+        int32_t mag_bias[3] = {0, 0, 0}, mag_scale[3] = {0, 0, 0};
+        // Get hard iron correction
+        mag_bias[0]  = (mag_max[0] + mag_min[0])/2;  // get average x mag bias in counts
+        mag_bias[1]  = (mag_max[1] + mag_min[1])/2;  // get average y mag bias in counts
+        mag_bias[2]  = (mag_max[2] + mag_min[2])/2;  // get average z mag bias in counts
+
+        float *dest1 = _magBias;
+
+        dest1[0] = (float) mag_bias[0]*_mRes*_magCalibration[0];  // save mag biases in G for main program
+        dest1[1] = (float) mag_bias[1]*_mRes*_magCalibration[1];
+        dest1[2] = (float) mag_bias[2]*_mRes*_magCalibration[2];
+
+        printf("MagBias X: %f\r\n", dest1[0]);
+        printf("MagBias Y: %f\r\n", dest1[1]);
+        printf("MagBias Z: %f\r\n", dest1[2]);
+
+        float *dest2 = _magScale;
+        if (!dest2) {
+            return;
+        }
+
+        // Get soft iron correction estimate
+        mag_scale[0]  = (mag_max[0] - mag_min[0])/2;  // get average x axis max chord length in counts
+        mag_scale[1]  = (mag_max[1] - mag_min[1])/2;  // get average y axis max chord length in counts
+        mag_scale[2]  = (mag_max[2] - mag_min[2])/2;  // get average z axis max chord length in counts
+
+        float avg_rad = mag_scale[0] + mag_scale[1] + mag_scale[2];
+        avg_rad /= 3.0;
+
+        dest2[0] = avg_rad/((float)mag_scale[0]);
+        dest2[1] = avg_rad/((float)mag_scale[1]);
+        dest2[2] = avg_rad/((float)mag_scale[2]);
+
+        printf("MagScale X: %f\r\n", dest2[0]);
+        printf("MagScale Y: %f\r\n", dest2[1]);
+        printf("MagScale Z: %f\r\n", dest2[2]);
+
+        delete[] mag_max;
+        delete[] mag_min;
+
+        callback(i2c_async::OK);
     }
-    // // https://github.com/kriswiner/MPU-6050/wiki/Simple-and-Effective-Magnetometer-Calibration
-    // // https://github.com/1994james/9250-code/blob/master/_9250_code.ino#L746
-    // void magcalMPU9250(void)
-    // {
-    //     float *dest1 = _magBias;
-    //     float *dest2 = _magScale;
-    //
-    //     uint16_t ii = 0, sample_count = 0;
-    //     int32_t mag_bias[3] = {0, 0, 0}, mag_scale[3] = {0, 0, 0};
-    //     int16_t mag_max[3] = { (int16_t) 0x8000, (int16_t) 0x8000, (int16_t) 0x8000};
-    //     int16_t mag_min[3] = { (int16_t) 0x7FFF, (int16_t) 0x7FFF, (int16_t) 0x7FFF};
-    //     int16_t mag_temp[3] = {0, 0, 0};
-    //
-    //     sample_count = 128;
-    //     uint8_t wait_millis;
-    //     if(_Mmode == 0x02) wait_millis=135;  // at 8 Hz ODR, new mag data is available every 125 ms
-    //     if(_Mmode == 0x06) wait_millis=12;   // at 100 Hz ODR, new mag data is available every 10 ms
-    //     for(ii = 0; ii < sample_count; ii++) {
-    //         readMagData(mag_temp);  // Read the mag data
-    //         for (int jj = 0; jj < 3; jj++) {
-    //             if(mag_temp[jj] > mag_max[jj]) mag_max[jj] = mag_temp[jj];
-    //             if(mag_temp[jj] < mag_min[jj]) mag_min[jj] = mag_temp[jj];
-    //         }
-    //         wait_ms(wait_millis);
-    //     }
-    //
-    //     // Get hard iron correction
-    //     mag_bias[0]  = (mag_max[0] + mag_min[0])/2;  // get average x mag bias in counts
-    //     mag_bias[1]  = (mag_max[1] + mag_min[1])/2;  // get average y mag bias in counts
-    //     mag_bias[2]  = (mag_max[2] + mag_min[2])/2;  // get average z mag bias in counts
-    //
-    //     dest1[0] = (float) mag_bias[0]*_mRes*_magCalibration[0];  // save mag biases in G for main program
-    //     dest1[1] = (float) mag_bias[1]*_mRes*_magCalibration[1];
-    //     dest1[2] = (float) mag_bias[2]*_mRes*_magCalibration[2];
-    //
-    //     printf("MagBias X: %f\r\n", dest1[0]);
-    //     printf("MagBias Y: %f\r\n", dest1[1]);
-    //     printf("MagBias Z: %f\r\n", dest1[2]);
-    //
-    //     if (!dest2) {
-    //         return;
-    //     }
-    //
-    //     // Get soft iron correction estimate
-    //     mag_scale[0]  = (mag_max[0] - mag_min[0])/2;  // get average x axis max chord length in counts
-    //     mag_scale[1]  = (mag_max[1] - mag_min[1])/2;  // get average y axis max chord length in counts
-    //     mag_scale[2]  = (mag_max[2] - mag_min[2])/2;  // get average z axis max chord length in counts
-    //
-    //     float avg_rad = mag_scale[0] + mag_scale[1] + mag_scale[2];
-    //     avg_rad /= 3.0;
-    //
-    //     dest2[0] = avg_rad/((float)mag_scale[0]);
-    //     dest2[1] = avg_rad/((float)mag_scale[1]);
-    //     dest2[2] = avg_rad/((float)mag_scale[2]);
-    //
-    //     printf("MagScale X: %f\r\n", dest2[0]);
-    //     printf("MagScale Y: %f\r\n", dest2[1]);
-    //     printf("MagScale Z: %f\r\n", dest2[2]);
-    // }
+
+public:
+    // https://github.com/kriswiner/MPU-6050/wiki/Simple-and-Effective-Magnetometer-Calibration
+    // https://github.com/1994james/9250-code/blob/master/_9250_code.ino#L746
+    void magcalMPU9250Async(MPU9250SimpleCallback callback) {
+        // delete[] in doMagcalMPU9250Async
+        int16_t * mag_max = new int16_t[3] { (int16_t) 0x8000, (int16_t) 0x8000, (int16_t) 0x8000};
+        // delete[] in doMagcalMPU9250Async
+        int16_t * mag_min = new int16_t[3] { (int16_t) 0x7FFF, (int16_t) 0x7FFF, (int16_t) 0x7FFF};
+
+        uint8_t wait_millis;
+        if(_Mmode == 0x02) wait_millis=135;  // at 8 Hz ODR, new mag data is available every 125 ms
+        if(_Mmode == 0x06) wait_millis=12;   // at 100 Hz ODR, new mag data is available every 10 ms
+        doMagcalMPU9250Async(0, 128, wait_millis, mag_max, mag_min, callback);
+    }
 };
