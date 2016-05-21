@@ -230,22 +230,28 @@ public:
     //     readAccelGyroData(data);
     //     transformAccelGyro(data, out);
     // }
-    //
-    // /* uint8_t out[4 * 3] */
-    // void getMag(uint8_t *out) {
-    //     int16_t data[3];
-    //     int8_t i;
-    //     float f;
-    //     float* out_data = (float *) out;
-    //     readMagData(data);
-    //     for (i = 0; i < 3; i++) {
-    //         // micro Tesla to milliGauss (_mRes)
-    //         f = (float) data[i] * _mRes * _magCalibration[i] - _magBias[i];
-    //         f *= _magScale[i];
-    //         _m[i] = f;
-    //         out_data[i] = f;
-    //     }
-    // }
+
+    /* uint8_t out[4 * 3] */
+    void getMagAsync(i2c_async::I2CReadBytesCallback callback) {
+        readMagDataAsync([this, callback](i2c_async::StatusCode status, std::size_t, uint16_t* data) {
+            if (status != i2c_async::OK) {
+                callback(status, 0, nullptr);
+                return;
+            }
+            int8_t i;
+            float f;
+            uint8_t* out = new uint8_t[4 * 3](); // must be delte[]d within the `callback`
+            float* out_data = (float *) out;
+            for (i = 0; i < 3; i++) {
+                // micro Tesla to milliGauss (_mRes)
+                f = (float) data[i] * _mRes * _magCalibration[i] - _magBias[i];
+                f *= _magScale[i];
+                _m[i] = f;
+                out_data[i] = f;
+            }
+            callback(status, 12, out);
+        });
+    }
 
 private:
     void readAccelGyroData(MPU9250DataCallback callback) {
