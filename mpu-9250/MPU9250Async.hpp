@@ -74,35 +74,41 @@ public:
             return;
         }
 
-        i2c_async::I2CWriteByteCallback initMPU9250Callback = [this, finalCallback](i2c_async::StatusCode status) {
-            if (status == i2c_async::OK) {
-                // TODO initAK8963()
+        i2c_async::I2CWriteByteCallback successCallback = [this, finalCallback](i2c_async::StatusCode status) {
+            if (status != i2c_async::OK) {
                 finalCallback(status);
-            } else {
-                finalCallback(status);
+                return;
             }
+            setInitialized();
+            printf("[INFO] %s\n", "Initialization done!!");
+            finalCallback(status);
         };
 
-        i2c_async::I2CWriteByteCallback accelgyrocalMPU9250AsyncCallback = [this, finalCallback, initMPU9250Callback](i2c_async::StatusCode status) {
-            if (status == i2c_async::OK) {
-                initMPU9250Async(initMPU9250Callback);
-            } else {
+        resetMPU9250Async([this, finalCallback, successCallback](i2c_async::StatusCode status) {
+            if (status != i2c_async::OK) {
                 finalCallback(status);
+                return;
             }
-        };
-
-        i2c_async::I2CWriteByteCallback resetMPU9250AsyncCallback = [this, finalCallback, accelgyrocalMPU9250AsyncCallback](i2c_async::StatusCode status) {
-            if (status == i2c_async::OK) {
-                accelgyrocalMPU9250Async(accelgyrocalMPU9250AsyncCallback);
-            } else {
-                finalCallback(status);
-            }
-        };
-        resetMPU9250Async(resetMPU9250AsyncCallback);
-
-    //     initAK8963();
-    //     magcalMPU9250();
-    //     setInitialized();
+            accelgyrocalMPU9250Async([this, finalCallback, successCallback](i2c_async::StatusCode status) {
+                if (status != i2c_async::OK) {
+                    finalCallback(status);
+                    return;
+                }
+                initMPU9250Async([this, finalCallback, successCallback](i2c_async::StatusCode status) {
+                    if (status != i2c_async::OK) {
+                        finalCallback(status);
+                        return;
+                    }
+                    initAK8963Async([this, finalCallback, successCallback](i2c_async::StatusCode status) {
+                        if (status != i2c_async::OK) {
+                            finalCallback(status);
+                            return;
+                        }
+                        magcalMPU9250Async(successCallback);
+                    });
+                });
+            });
+        });
     }
 
     uint8_t isInitialized(void) {
@@ -291,28 +297,43 @@ public:
         writeByteAsync(MPU9250_ADDRESS, PWR_MGMT_1, 0x80, callback, 100); // Write a one to bit 7 reset bit; toggle reset device
     }
 
-    // void initAK8963(void) {
-    //     float * destination = _magCalibration;
-    //     // First extract the factory calibration for each magnetometer axis
-    //     uint8_t rawData[3];    // x/y/z gyro calibration data stored here
-    //     writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer
-    //     wait(0.01);
-    //     writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
-    //     wait(0.01);
-    //     readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);     // Read the x-, y-, and z-axis calibration values
-    //     destination[0] = (float)(rawData[0] - 128)/256.0f + 1.0f;   // Return x-axis sensitivity adjustment values, etc.
-    //     destination[1] = (float)(rawData[1] - 128)/256.0f + 1.0f;
-    //     destination[2] = (float)(rawData[2] - 128)/256.0f + 1.0f;
-    //     writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer
-    //     wait(0.01);
-    //     // Configure the magnetometer for continuous read and highest resolution
-    //     // set Mscale bit 4 to 1 (0) to enable 16 (14) bit resolution in CNTL register,
-    //     // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
-    //     writeByte(AK8963_ADDRESS, AK8963_CNTL, _Mscale << 4 | _Mmode); // Set magnetometer data resolution and sample ODR
-    //     wait(0.01);
-    // }
-
 private:
+    void initAK8963Async(MPU9250SimpleCallback callback) {
+        const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 2> config = {
+            std::make_tuple(AK8963_CNTL, 0x00, 10),  // Power down magnetometer
+            std::make_tuple(AK8963_CNTL, 0x0F, 10)   // Enter Fuse ROM access mode
+        };
+        writeBytesAsync(AK8963_ADDRESS, config, [this, callback](i2c_async::StatusCode status) {
+            if (status != i2c_async::OK) {
+                callback(status);
+                return;
+            }
+            // First extract the factory calibration for each magnetometer axis
+            readBytesAsync(AK8963_ADDRESS, AK8963_ASAX, 3, [this, callback](i2c_async::StatusCode status, std::size_t, uint8_t* rawData) {
+                if (status != i2c_async::OK) {
+                    callback(status);
+                    return;
+                }
+                float * destination = _magCalibration;
+                destination[0] = (float)(rawData[0] - 128)/256.0f + 1.0f;   // Return x-axis sensitivity adjustment values, etc.
+                destination[1] = (float)(rawData[1] - 128)/256.0f + 1.0f;
+                destination[2] = (float)(rawData[2] - 128)/256.0f + 1.0f;
+                delete[] rawData;
+
+                const std::array<std::tuple<uint8_t, uint8_t, uint8_t>, 2> fini = {
+                    std::make_tuple(AK8963_CNTL, 0x00, 10),                     // Power down magnetometer
+                    // Configure the magnetometer for continuous read and highest resolution
+                    // set Mscale bit 4 to 1 (0) to enable 16 (14) bit resolution in CNTL register,
+                    // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
+                    std::make_tuple(AK8963_CNTL, _Mscale << 4 | _Mmode, 10)    // Set magnetometer data resolution and sample ODR
+                };
+                writeBytesAsync(AK8963_ADDRESS, fini, [this, callback](i2c_async::StatusCode status) {
+                    callback(status);
+                });
+            });
+        });
+    }
+
     void gyroConfig(MPU9250SimpleCallback callback) {
         // Set gyroscope full scale range
         // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
@@ -956,6 +977,9 @@ public:
 
     }
 
+    void magcalMPU9250Async(MPU9250SimpleCallback callback) {
+        callback(i2c_async::OK); // TODO
+    }
     // // https://github.com/kriswiner/MPU-6050/wiki/Simple-and-Effective-Magnetometer-Calibration
     // // https://github.com/1994james/9250-code/blob/master/_9250_code.ino#L746
     // void magcalMPU9250(void)
