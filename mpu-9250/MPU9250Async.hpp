@@ -203,33 +203,39 @@ public:
         }
     }
 
-    // void transformAccelGyro(int16_t* src, uint8_t* out) {
-    //     int8_t base = 0;
-    //     int8_t i;
-    //     float f;
-    //     float* out_data = (float *) out;
-    //
-    //     for (i = 0; i < 3; i++) {
-    //         f = (float) src[i] * _aRes - _accelBias[i];
-    //         _a[i] = f;
-    //         // g to m/s*s
-    //         out_data[base + i] = G * f;
-    //     }
-    //     base += 3;
-    //     for (i = 0; i < 3; i++) {
-    //         // Degree to Radian
-    //         f = DEG_TO_RAD * ((float) src[base + i] * _gRes - _gyroBias[i]);
-    //         _g[i] = f;
-    //         out_data[base + i] = f;
-    //     }
-    // }
-    //
-    // /* uint8_t out[4 * 6] */
-    // void getAccelGyro(uint8_t *out) {
-    //     int16_t data[6];
-    //     readAccelGyroData(data);
-    //     transformAccelGyro(data, out);
-    // }
+    void transformAccelGyro(uint16_t* src, uint8_t* out) {
+        int8_t base = 0;
+        int8_t i;
+        float f;
+        float* out_data = (float *) out;
+
+        for (i = 0; i < 3; i++) {
+            f = (float) src[i] * _aRes - _accelBias[i];
+            _a[i] = f;
+            // g to m/s*s
+            out_data[base + i] = G * f;
+        }
+        base += 3;
+        for (i = 0; i < 3; i++) {
+            // Degree to Radian
+            f = DEG_TO_RAD * ((float) src[base + i] * _gRes - _gyroBias[i]);
+            _g[i] = f;
+            out_data[base + i] = f;
+        }
+    }
+
+    /* uint8_t out[4 * 6] */
+    void getAccelGyroAsync(i2c_async::I2CReadBytesCallback callback) {
+        readAccelGyroData([this, callback](i2c_async::StatusCode status, std::size_t, uint16_t* data) {
+            if (status != i2c_async::OK) {
+                callback(status, 0, nullptr);
+                return;
+            }
+            uint8_t* out = new uint8_t[4 * 6](); // must be delte[]d within the `callback`
+            transformAccelGyro(data, out);
+            callback(status, 24, out);
+        });
+    }
 
     /* uint8_t out[4 * 3] */
     void getMagAsync(i2c_async::I2CReadBytesCallback callback) {
