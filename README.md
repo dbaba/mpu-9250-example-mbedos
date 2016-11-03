@@ -56,7 +56,7 @@ Set 115200 bps in order to connect to the USB serial port. The baud rate is set 
 ```
 
 # Revision History
-* ?????
+* 2.0.0
     - Rewrite the project for applying mbed OS 5
     - Async API is currently not available
     - mbed OS 3 source code is available on `mbed-os-3.0` branch
