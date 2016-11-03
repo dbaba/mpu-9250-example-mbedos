@@ -139,14 +139,14 @@
 #define ZA_OFFSET_H         0x7D
 #define ZA_OFFSET_L         0x7E
 
-// Using the MSENSR-9250 breakout board, ADO is set to 0
-// Seven-bit device address is 110100 for ADO = 0 and 110101 for ADO = 1
+// Using the MSENSR-9250 breakout board, AD0 is set to 0
+// Seven-bit device address is 110100 for AD0 = 0 and 110101 for AD0 = 1
 //mbed uses the eight-bit device address, so shift seven-bit addresses left by one!
-#define ADO 1
-#if ADO
-#define MPU9250_ADDRESS 0x69<<1    // Device address when ADO = 1
+#define AD0 1
+#if AD0
+#define MPU9250_ADDRESS 0x69<<1    // Device address when AD0 = 1
 #else
-#define MPU9250_ADDRESS 0x68<<1    // Device address when ADO = 0
+#define MPU9250_ADDRESS 0x68<<1    // Device address when AD0 = 0
 #endif
 
 // Set initial input parameters
