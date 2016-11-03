@@ -2,7 +2,7 @@
 #ifndef MPU9250_H
 #define MPU9250_H
 
-#include "mbed-drivers/mbed.h"
+#include "mbed.h"
 #include <math.h>
 #include "mpu-9250/MPU9250-common.hpp"
 
